@@ -45,9 +45,13 @@ pub fn codegen(
                 pub cs: rtic::export::CriticalSection<#lt>
             ));
 
+            fields.push(quote!(poster: Poster));
+
             values.push(quote!(cs: rtic::export::CriticalSection::new()));
 
             values.push(quote!(core));
+
+            values.push(quote!(poster: Poster));
         }
 
         Context::Idle => {}
@@ -223,35 +227,61 @@ pub fn codegen(
 
         let internal_spawn_ident = util::internal_task_ident(name, "spawn");
 
+        let dequeue = if cfg!(feature = "memory-watermark") {
+            let update_watermark = util::mark_internal_name("update_watermark");
+            let capacity = spawnee.args.capacity;
+            module_items.push(quote!(
+                static WATERMARK: core::sync::atomic::AtomicU8 = core::sync::atomic::AtomicU8::new(0);
+                pub fn #update_watermark(fq_len: u8) {
+                    let new_usage = #capacity - fq_len;
+                    if new_usage > WATERMARK.load(core::sync::atomic::Ordering::Relaxed) {
+                        WATERMARK.store(new_usage, core::sync::atomic::Ordering::Relaxed)
+                    }
+                }
+
+                pub fn max_buffer_usage() -> u8 {
+                    WATERMARK.load(core::sync::atomic::Ordering::Relaxed)
+                }
+            ));
+
+            quote!({
+                let index = (&mut *#fq.get_mut()).dequeue();
+                #name::#update_watermark((&*#fq.get()).len());
+                index
+            })
+        } else {
+            quote!((&mut *#fq.get_mut()).dequeue())
+        };
+
         // Spawn caller
         items.push(quote!(
+            #(#cfgs)*
+            /// Spawns the task directly
+            pub fn #internal_spawn_ident(#(#args,)*) -> Result<(), #ty> {
+                let input = #tupled;
 
-        #(#cfgs)*
-        /// Spawns the task directly
-        pub fn #internal_spawn_ident(#(#args,)*) -> Result<(), #ty> {
-            let input = #tupled;
+                unsafe {
+                    if let Some(index) = rtic::export::interrupt::free(|_| #dequeue) {
+                        (&mut *#inputs
+                            .get_mut())
+                            .get_unchecked_mut(usize::from(index))
+                            .as_mut_ptr()
+                            .write(input);
 
-            unsafe {
-                if let Some(index) = rtic::export::interrupt::free(|_| (&mut *#fq.get_mut()).dequeue()) {
-                    (&mut *#inputs
-                        .get_mut())
-                        .get_unchecked_mut(usize::from(index))
-                        .as_mut_ptr()
-                        .write(input);
+                        rtic::export::interrupt::free(|_| {
+                            (&mut *#rq.get_mut()).enqueue_unchecked((#t::#name, index));
+                        });
 
-                    rtic::export::interrupt::free(|_| {
-                        (&mut *#rq.get_mut()).enqueue_unchecked((#t::#name, index));
-                    });
+                        rtic::pend(#device::#enum_::#interrupt);
 
-                    rtic::pend(#device::#enum_::#interrupt);
-
-                    Ok(())
-                } else {
-                    Err(input)
+                        Ok(())
+                    } else {
+                        Err(input)
+                    }
                 }
-            }
 
-        }));
+            }
+        ));
 
         module_items.push(quote!(
             #(#cfgs)*
