@@ -5,10 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- CI changelog entry enforcer
+- `examples/periodic-at.rs`, an example of a periodic timer without accumulated drift.
+- `examples/periodic-at2.rs`, an example of a periodic process with two tasks, with offset timing. Here we depict two alternative usages of the timer type, explicit and trait based.
+- book: Update `Monotonic` tips.
+
 ## [v1.0.0] - 2021-12-25
 
 ### Changed
 
+- Try to detect `target-dir` for rtic-expansion.rs
 - Bump RTIC dependencies also updated to v1.0.0
 - Edition 2021
 - Change default `idle` behaviour to be `NOP` instead of `WFI`
