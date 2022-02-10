@@ -7,10 +7,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- If current $stable and master version matches, dev-book redirects to $stable book
+- During deploy stage, merge master branch into current stable IFF cargo package version matches
+- Rework branch structure, release/vVERSION
+- Cargo clippy in CI
+- Use rust-cache Github Action
 - CI changelog entry enforcer
 - `examples/periodic-at.rs`, an example of a periodic timer without accumulated drift.
 - `examples/periodic-at2.rs`, an example of a periodic process with two tasks, with offset timing. Here we depict two alternative usages of the timer type, explicit and trait based.
 - book: Update `Monotonic` tips.
+
+### Fixed
+
+- Force mdBook to return error codes
+- Readded missing ramfunc output to book
 
 ## [v1.0.0] - 2021-12-25
 
